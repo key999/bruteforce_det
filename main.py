@@ -10,7 +10,8 @@ LOG_FILE = 'logs'
 FLAG_FILE = './flag'
 TAIL_LINES = 100
 LAST_LOG = None
-SEARCH_FORM = 'cat {0} | grep -i'.format(LOG_FILE)
+LAST_LOG_LINE = 0
+SEARCH_FORM = 'tail -n {0} {1} | grep -i'.format(LAST_LOG_LINE, LOG_FILE)
 
 
 def initial_check():
