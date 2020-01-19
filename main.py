@@ -1,70 +1,71 @@
 #!/usr/bin/env python3
 
 from os import popen, system
-import time
 
-PATTERNS = {'failed': 0,
-            'root': 0
+# name of pattern to be searched for : amount of 'safe' occurrences
+PATTERNS = {'failed': 100,
+            'root': 100
             }
+
 LOG_FILE = 'logs'
 FLAG_FILE = './flag'
-TAIL_LINES = 100
-LAST_LOG = None
 LAST_LOG_LINE = 0
-SEARCH_FORM = 'tail -n {0} {1} | grep -i'.format(LAST_LOG_LINE, LOG_FILE)
+FORM = None
 
 
-def initial_check():
-    global SEARCH_FORM
+def check():
+    global FORM
+    global LAST_LOG_LINE
+
     # prepare searching form
     for i in PATTERNS:
-        SEARCH_FORM += " -e '{0}'".format(i)
+        FORM += " -e '{0}'".format(i)
 
-    SEARCH_FORM += " > temp"
-    print('search form:', SEARCH_FORM)  # shite-debug
-    system(SEARCH_FORM)
+    FORM += " > temp"
 
-    LAST_LOG = time.strptime(popen("tail -n 1 {0} | cut -d ' ' -f 1-3".format(LOG_FILE)).read()[0:-1], "%b %d %H:%M:%S")
-    print(LAST_LOG)
+    print('executing:', FORM)  # shite-debug
+    # tail -n +LAST_LOG_LINE LOG_FILE | grep -i -e PATTERNS > temp
+    system(FORM)
+
+    # set LAST_LOG_LINE
+    LAST_LOG_LINE = popen("wc -l {0} | cut -d ' ' -f 1".format(LOG_FILE)).read()
+    print('last log line:', LAST_LOG_LINE)  # shite-debug
+    save()
+
+    # determine if being attacked
+    for i in PATTERNS:
+        if int(popen("cat {0} | grep -e '{1}' | wc -l".format('temp', i)).read()[:-1]) > PATTERNS[i]:
+            bruteforce_detected()
 
 
-# TODO improve detection system
-def find_log():
-    pass
-
-
-# action on detecting a possible attack
-# DONE set flag file
 # TODO implement notification
 def bruteforce_detected():
     system("echo 1 > {0}".format(FLAG_FILE))
 
 
-# saving last log date
-# for detection purposes
+# save LAST_LOG_LINE
 def save():
-    # TODO implement this
-    pass
+    with open('last-log', 'w') as f:
+        f.write(LAST_LOG_LINE)
 
 
-# load LAST_LOG time
+# load LAST_LOG_LINE
 def load():
-    # TODO implement this
-    pass
+    global LAST_LOG_LINE
+    try:
+        with open('last-log', 'r') as f:
+            LAST_LOG_LINE = int(f.read()[:-1])
+    except (ValueError, FileNotFoundError):
+        LAST_LOG_LINE = 0
 
 
 # main function
 # handles logic
 def run():
-    try:
-        load()
-    except FileNotFoundError:
-        pass
-
-    if LAST_LOG is None:
-        initial_check()
-    # if find_log() == 1:
-    #     bruteforce_detected()
+    load()
+    global FORM
+    FORM = 'tail -n +{0} {1} | grep -i'.format(LAST_LOG_LINE, LOG_FILE)
+    check()
 
 
 run()
