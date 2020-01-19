@@ -20,7 +20,7 @@ def initial_check():
         SEARCH_FORM += " -e '{0}'".format(i)
 
     SEARCH_FORM += " > temp"
-    print(SEARCH_FORM)
+    print('search form:', SEARCH_FORM)  # shite-debug
     system(SEARCH_FORM)
 
     LAST_LOG = time.strptime(popen("tail -n 1 {0} | cut -d ' ' -f 1-3".format(LOG_FILE)).read()[0:-1], "%b %d %H:%M:%S")
