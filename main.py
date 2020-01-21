@@ -13,41 +13,40 @@ PATTERNS = {'failed': 20,
 LOG_FILE = 'auth.log'
 FLAG_FILE = './flag'
 LAST_LOG_LINE = 0
-FORM = None
+GREP_FORM = None
 LAST_LOG_DATE = None
+TEMP_FILE = 'temp'
 
 
 def check():
-    global FORM
+    global GREP_FORM
     global LAST_LOG_LINE
     global LAST_LOG_DATE
 
     # prepare searching form
     for i in PATTERNS:
-        FORM += " -e '{0}'".format(i)
+        GREP_FORM += " -e '{0}'".format(i)
 
-    FORM += " > temp"
+    GREP_FORM += " > {0}".format(TEMP_FILE)
 
-    print('executing:', FORM)  # shite-debug
-    # tail -n +LAST_LOG_LINE LOG_FILE | grep -i -e PATTERNS > temp
-    system(FORM)
+    print('executing:', GREP_FORM)  # shite-debug
+    # tail -n +LAST_LOG_LINE LOG_FILE | grep -i -e PATTERNS > TEMP_FILE
+    system(GREP_FORM)
 
     # set LAST_LOG_LINE
     LAST_LOG_LINE = popen("wc -l {0} | cut -d ' ' -f 1".format(LOG_FILE)).read()
     print('last log line:', LAST_LOG_LINE)  # shite-debug
 
     # set LAST_LOG_DATE
-    LAST_LOG_DATE = time.strptime(popen("tail -n 1 {0} | cut -d ' ' -f 1-3".format(LOG_FILE)).read()[0:-1],
-                                  "%b %d %H:%M:%S")
-    print('last date:', LAST_LOG_DATE)  # shite-debug
+    LAST_LOG_DATE = time.strptime(popen("tail -n 1 {0} | cut -d ' ' -f 1-3".format(LOG_FILE)).read()[0:-1], "%b %d %H:%M:%S")
+    # print('last date:', LAST_LOG_DATE)  # shite-debug
+    LAST_LOG_DATE = popen("tail -n 1 {0} | cut -d ' ' -f 1-3".format(LOG_FILE)).read()
 
-    twojastara = popen("tail -n 1 {0} | cut -d ' ' -f 1-3".format(LOG_FILE)).read()
-
-    save(twojastara)
+    save()
 
     # determine if being attacked
     for i in PATTERNS:
-        if int(popen("cat {0} | grep -e '{1}' | wc -l".format('temp', i)).read()[:-1]) > PATTERNS[i]:
+        if int(popen("cat {0} | grep -e '{1}' | wc -l".format(TEMP_FILE, i)).read()[:-1]) > PATTERNS[i]:
             bruteforce_detected()
 
 
@@ -58,10 +57,10 @@ def bruteforce_detected():
 
 
 # save LAST_LOG_LINE
-def save(twojstary):
+def save():
     with open('last-log', 'w') as f:
         f.write(LAST_LOG_LINE)
-        f.write(twojstary)
+        f.write(LAST_LOG_DATE)
 
 
 # load LAST_LOG_LINE
@@ -78,8 +77,8 @@ def load():
 # handles logic
 def run():
     load()
-    global FORM
-    FORM = 'tail -n +{0} {1} | grep -i'.format(LAST_LOG_LINE, LOG_FILE)
+    global GREP_FORM
+    GREP_FORM = 'tail -n +{0} {1} | grep -i'.format(LAST_LOG_LINE, LOG_FILE)
     check()
 
 
