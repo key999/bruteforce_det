@@ -12,10 +12,11 @@ IP_BLACKLIST = {}
 INVALID_ATTEMPTS = 10
 INVALID_RATIO = 0.05
 
-LOG_FILE = 'auth.log'
+LOG_FILE = '/var/log/auth.log'
 FLAG_FILE = './flag'
 TEMP_FILE = 'temp'
-BLACKLIST_FILE = 'blacklist'
+BLACKLIST_FILE = 'ip_addrs'
+PERMANENT_BLACKLIST_FILE = 'blacklist'
 
 LAST_LOG_LINE = 0
 LAST_LOG_DATE = ''
@@ -36,11 +37,9 @@ def check():
     # tail -n +LAST_LOG_LINE LOG_FILE | grep -i -e PATTERNS > TEMP_FILE
     system(GREP_FORM)
 
-    # set and save last log
-    save()
-
     # determine if being attacked
     bruteforce_check = False
+    breached = False
 
     # 1. invalid to valid log ratio
     log_lines = int(popen("wc -l {0} | cut -d ' ' -f 1".format(LOG_FILE)).read()[:-1])
@@ -75,15 +74,45 @@ def check():
             bruteforce_check = True
             print('{1} attempts detected for {0}'.format(ip_address, IP_BLACKLIST[ip_address]))  # shite-debug
 
+            # add abusing IP address to external, permanent blacklist
+            try:
+                with open(PERMANENT_BLACKLIST_FILE, "a") as f:
+                    f.write(ip_address + '\n')
+            except FileNotFoundError:
+                system("echo {0} > {1}".format(ip_address, PERMANENT_BLACKLIST_FILE))
+            finally:
+                system("sort -u {0}".format(PERMANENT_BLACKLIST_FILE))
+
+    # 5. check if an attack succeeded for an IP from the list (if an IP logged at least once)
+    print("\nsearching successful attempts\n".upper())  # shite-debug
+    for ip_address in IP_BLACKLIST:
+        if IP_BLACKLIST[ip_address] >= INVALID_ATTEMPTS:
+            form = "tail -n +{0} {1} | grep -i 'accepted' | grep '{2}' | wc -l".format(LAST_LOG_LINE, LOG_FILE,
+                                                                                       ip_address)
+            print("executing:", form)  # shite-debug
+            logged_in = int(popen(form).read())
+            print("{0} logged in {1} times".format(ip_address, logged_in))  # shite-debug
+
+            if logged_in > 0:
+                breached = True
+
     # go to notification function if possible attack
     if bruteforce_check is True:
-        bruteforce_detected()
+        bruteforce_detected(breached)
+
+    # set and save last log
+    save()
 
 
 # TODO implement notification
-def bruteforce_detected():
+def bruteforce_detected(breached):
     system("echo 1 > {0}".format(FLAG_FILE))
     print("\nRATUNKU ATAKUJO")  # shite-debug
+
+
+    if breached is True:
+        system("echo 2 > {0}".format(FLAG_FILE))
+        print("\nŁO KUWA PANIE WJEBALI SIE")  # shite-debug
 
 
 # save last log date and line
@@ -120,7 +149,7 @@ def load():
     finally:
         # make sure LAST_LOG_LINE is actually a last checked line in the LOG_FILE
         # in case something happens to the log (for example another process trims the beginning of log)
-        last_log_line = int(popen("cat {0} | grep -ine '{1}' | cut -d ':' -f 1 | head -n 1"
+        last_log_line = int(popen("cat {0} | grep -ine '{1}' | cut -d ':' -f 1 | tail -n 1"
                                   .format(LOG_FILE, LAST_LOG_DATE)).readline()[:-1])
         if last_log_line != LAST_LOG_LINE:
             LAST_LOG_LINE = last_log_line
